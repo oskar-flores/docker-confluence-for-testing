@@ -1,36 +1,36 @@
 #!/usr/bin/env bash
 
-help () {
-            echo
-            echo "Usage: docker-build-image.sh [options]"
-            echo
-            echo "Builds the confluence-4-testing image"
-            echo
-            echo "The following options are available:"
-            echo "x.y.z     Confluence version"
-            echo
-            exit
+help() {
+    echo
+    echo "Usage: docker-build-image.sh <jdk_download_url>"
+    echo
+    echo "Builds the confluence-4-testing image"
+    echo
+    echo "The following options are available:"
+    echo "<jdk_download_url>  (Mandatory)Provide the url to download the JDK to be used"
+    echo
+    exit
 }
 
 while [ $# -gt 0 ]
 do
     case "$1" in
-        [0123456789]*)
-            CONFLUENCE_VERSION=$1
-            shift 1;;
         "-?" | "-h" | "--help" | "-help" | "help")
             help;;
         *)
-            shift 1
+            JDK_URL="$1"
+            shift 1;;
     esac
 done
+
+if [[ -z "$JDK_URL" ]]
+then
+    help
+fi
 
 # Set current folder to parent
 cd "$(dirname "$0")"/..
 
-if [[ ! -z "$CONFLUENCE_VERSION" ]]
-then
-    eval "docker build -t confluence-4-testing:$CONFLUENCE_VERSION ."
-else
-    docker build -t confluence-4-testing .
-fi
+COMMAND="docker build -t confluence-4-testing --build-arg JDK_URL=$JDK_URL ."
+echo $COMMAND
+eval $COMMAND

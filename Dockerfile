@@ -1,53 +1,41 @@
-FROM ubuntu:xenial
+FROM alpine:3.7
 MAINTAINER @aruizca - Angel Ruiz
 
-ENV RUN_USER            daemon
-ENV RUN_GROUP           daemon
+ARG JDK_URL
 
-# https://confluence.atlassian.com/doc/confluence-home-and-other-important-directories-590259707.html
-ENV CONFLUENCE_HOME          /var/atlassian/application-data/confluence
-ENV CONFLUENCE_INSTALL_DIR   /opt/atlassian/confluence
+ENV GLIBC_REPO=https://github.com/sgerrand/alpine-pkg-glibc \
+    GLIBC_VERSION=2.27-r0 \
+    ATLAS_SDK_VERSION=6.3.10
 
-#VOLUME ["${CONFLUENCE_HOME}"]
+# Install glibc and others
+RUN set -ex && \
+    apk -U upgrade && \
+    apk add libstdc++ curl ca-certificates bash wget && \
+    for pkg in glibc-${GLIBC_VERSION} glibc-bin-${GLIBC_VERSION} glibc-i18n-${GLIBC_VERSION}; do curl -sSL ${GLIBC_REPO}/releases/download/${GLIBC_VERSION}/${pkg}.apk -o /tmp/${pkg}.apk; done && \
+    apk add --allow-untrusted /tmp/*.apk && \
+    rm -v /tmp/*.apk && \
+    ( /usr/glibc-compat/bin/localedef --force --inputfile POSIX --charmap UTF-8 C.UTF-8 || true ) && \
+    echo "export LANG=C.UTF-8" > /etc/profile.d/locale.sh && \
+    /usr/glibc-compat/sbin/ldconfig /lib /usr/glibc-compat/lib
 
-# Expose HTTP and Synchrony ports
-EXPOSE 8090
-EXPOSE 8091
+# Download and unarchive the Java Development Kit
+RUN mkdir -p /opt/jdk && \
+    wget -O /tmp/jdk.tar.gz ${JDK_URL} && \
+    tar -xf /tmp/jdk.tar.gz --strip 1 --directory /opt/jdk && \
+    rm /tmp/jdk.tar.gz
 
-#RUN apk update -qq \
-#    && update-ca-certificates \
-#    && apk add ca-certificates wget curl openssh bash procps openssl perl ttf-dejavu tini libc6-compat jq \
-#    && rm -rf /var/lib/{apt,dpkg,cache,log}/ /tmp/* /var/tmp/*
-RUN apt-get update && \
-    apt-get install -yq wget curl  jq
+# Set Java environment
+ENV JAVA_HOME=/opt/jdk \
+    PATH=${JAVA_HOME}/bin:${PATH}
 
-WORKDIR /root
+# Expose HTTP 
+EXPOSE 1990
 
-# Install Jabba JDK Manager
-RUN curl -sL https://github.com/shyiko/jabba/raw/master/install.sh | bash && . ~/.jabba/jabba.sh && \
-    ln -sf ~/.jabba/bin/jabba /usr/local/bin && \
-    chmod -R a+x ~/.jabba/bin/jabba && \
-# Install JDK 8
-    wget -O jdk-8u144-linux-x64.tar.gz https://www.dropbox.com/s/4aeeivy5zzukxp3/jdk-8u144-linux-x64.tar.gz && \
-    jabba install 1.8.144=tgz+file:///root/jdk-8u144-linux-x64.tar.gz && \
-    rm jdk-8u144-linux-x64.tar.gz && \
-    PATH=/root/.jabba/jdk/1.8.144:$PATH
-ENV JAVA_HOME /root/.jabba/jdk/1.8.144
+# Install Atlassian SDK
+RUN wget -O /tmp/atlassian-plugin-sdk-$ATLAS_SDK_VERSION.tar.gz https://packages.atlassian.com/maven/repository/public/com/atlassian/amps/atlassian-plugin-sdk/$ATLAS_SDK_VERSION/atlassian-plugin-sdk-$ATLAS_SDK_VERSION.tar.gz && \
+    tar -xf /tmp/atlassian-plugin-sdk-$ATLAS_SDK_VERSION.tar.gz --directory /tmp && \
+    ln -s /tmp/atlassian-plugin-sdk-$ATLAS_SDK_VERSION/bin/atlas-* /usr/local/bin && \
+    rm /tmp/atlassian-plugin-sdk-$ATLAS_SDK_VERSION.tar.gz
 
-ARG CONFLUENCE_VERSION=6.8.1
-ARG DOWNLOAD_URL=http://www.atlassian.com/software/confluence/downloads/binary/atlassian-confluence-${CONFLUENCE_VERSION}.tar.gz
-
-WORKDIR $CONFLUENCE_HOME
-
-COPY entrypoint.sh              /entrypoint.sh
-
-#COPY . /tmp
-
-RUN mkdir -p                             ${CONFLUENCE_INSTALL_DIR} \
-    && curl -L --silent                  ${DOWNLOAD_URL} | tar -xz --strip-components=1 -C "$CONFLUENCE_INSTALL_DIR" \
-    && chown -R ${RUN_USER}:${RUN_GROUP} ${CONFLUENCE_INSTALL_DIR}/ \
-    && sed -i -e 's/-Xms\([0-9]\+[kmg]\) -Xmx\([0-9]\+[kmg]\)/-Xms\${JVM_MINIMUM_MEMORY:=\1} -Xmx\${JVM_MAXIMUM_MEMORY:=\2} \${JVM_SUPPORT_RECOMMENDED_ARGS} -Dconfluence.home=\${CONFLUENCE_HOME}/g' ${CONFLUENCE_INSTALL_DIR}/bin/setenv.sh \
-    && sed -i -e 's/port="8090"/port="8090" secure="${catalinaConnectorSecure}" scheme="${catalinaConnectorScheme}" proxyName="${catalinaConnectorProxyName}" proxyPort="${catalinaConnectorProxyPort}"/' ${CONFLUENCE_INSTALL_DIR}/conf/server.xml
-
-CMD ["/entrypoint.sh", "-fg"]
-#ENTRYPOINT ["/sbin/tini", "--"]
+COPY entrypoint.sh  /tmp/entrypoint.sh
+CMD ["/tmp/entrypoint.sh"]

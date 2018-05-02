@@ -1,0 +1,19 @@
+version: "3"
+services:
+  confluence:
+    image: confluence-4-testing
+    volumes:
+      - "docker-maven-repo:/root/.m2"
+    ports:
+      - "1990:1990"
+    networks:
+      - confluence-test-network
+    environment:
+      - CONFLUENCE_VERSION
+
+networks:
+  confluence-test-network:
+    driver: bridge
+
+volumes:
+  docker-maven-repo:
