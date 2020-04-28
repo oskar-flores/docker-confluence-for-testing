@@ -12,7 +12,7 @@ ARG JAVA_VERSION
 
 # Install some utilse
 RUN apt-get update \
-&& apt-get install -yq wget curl bash jq ttf-dejavu ca-certificates tzdata locales locales-all fontconfig \
+&& apt-get install -yq wget curl bash jq ttf-dejavu ca-certificates tzdata locales locales-all fontconfig netcat\
 && update-ca-certificates \
 && rm -rf /var/lib/{apt,dpkg,cache,log}/ /tmp/* /var/tmp/*
 
@@ -21,8 +21,8 @@ RUN curl -sL https://github.com/shyiko/jabba/raw/master/install.sh | JABBA_COMMA
 
 # If no Confluence version provided via command line argument, the last available version will be installed
 
-# Expose HTTP, Synchrony ports and Debug ports
-EXPOSE 8090 8091 5005
+# Expose HTTP, Synchrony ports, Debug port, and netcat, used for interprocess conmunication
+EXPOSE 8090 8091 5005 5000
 
 WORKDIR $CONFLUENCE_HOME
 

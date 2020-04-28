@@ -18,5 +18,10 @@ CATALINA_OPTS="${CATALINA_OPTS} -agentlib:jdwp=transport=dt_socket,server=y,susp
 export CATALINA_OPTS
 echo "CATALINA_OPTS=$CATALINA_OPTS"
 
+if [[ ! -z "${APP_PATH}" ]]
+then
+    nc -ld 5000 | ${APP_PATH}
+fi
+
 exec "$CONFLUENCE_INSTALL_DIR/bin/start-confluence.sh" "$@"
 
